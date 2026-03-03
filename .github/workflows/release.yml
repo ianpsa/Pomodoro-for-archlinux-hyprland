@@ -16,12 +16,10 @@ jobs:
     strategy:
       matrix:
         include:
-          # Linux x86_64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-24.04
             artifact: pomodoro-mindfullness-linux-x86_64
             cross: false
-          # Linux ARM64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04
             artifact: pomodoro-mindfullness-linux-aarch64
@@ -49,8 +47,6 @@ jobs:
             pkg-config \
             meson \
             ninja-build \
-            libgirepository1.0-dev \
-            gobject-introspection \
             libwayland-dev \
             wayland-protocols
 
@@ -60,7 +56,13 @@ jobs:
           git clone --branch v${{ env.GTK4_LAYER_SHELL_VERSION }} --depth 1 \
             https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
           cd /tmp/gtk4-layer-shell
-          meson setup build -Dexamples=false -Ddocs=false -Dtests=false --prefix=/usr
+          meson setup build \
+            -Dexamples=false \
+            -Ddocs=false \
+            -Dtests=false \
+            -Dintrospection=false \
+            -Dvapi=false \
+            --prefix=/usr
           ninja -C build
           sudo ninja -C build install
           sudo ldconfig
@@ -71,29 +73,26 @@ jobs:
         run: |
           sudo dpkg --add-architecture arm64
 
-          # Ubuntu 24.04 runners use deb822 format (.sources files)
-          # We need to pin existing sources to amd64 only and add ports for arm64
-
-          # Pin all existing .sources files to amd64 only
+          # Pin all existing deb822 .sources files to amd64 only
           for f in /etc/apt/sources.list.d/*.sources; do
             if [ -f "$f" ] && ! grep -q "^Architectures:" "$f"; then
               sudo sed -i '/^Types:/a Architectures: amd64' "$f"
             fi
           done
 
-          # Also handle legacy .list format if present
+          # Handle legacy .list format if present
           if [ -f /etc/apt/sources.list ]; then
             sudo sed -i '/^deb /{/\[/!s/^deb /deb [arch=amd64] /}' /etc/apt/sources.list 2>/dev/null || true
           fi
 
-          # Add arm64 sources from ports.ubuntu.com (the only mirror with arm64)
-          sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null <<'SOURCES'
+          # Add arm64 sources (ports.ubuntu.com is the only mirror with arm64)
+          cat <<'EOF' | sudo tee /etc/apt/sources.list.d/arm64-ports.sources
           Types: deb
           URIs: http://ports.ubuntu.com/ubuntu-ports/
           Suites: noble noble-updates noble-security
           Components: main restricted universe multiverse
           Architectures: arm64
-          SOURCES
+          EOF
 
       - name: Install dependencies (aarch64 cross)
         if: ${{ matrix.cross }}
@@ -108,9 +107,7 @@ jobs:
             libgtk-4-dev:arm64 \
             libasound2-dev:arm64 \
             libwayland-dev:arm64 \
-            wayland-protocols \
-            libgirepository1.0-dev:arm64 \
-            gobject-introspection
+            wayland-protocols
 
       - name: Build gtk4-layer-shell from source (aarch64 cross)
         if: ${{ matrix.cross }}
@@ -139,8 +136,13 @@ jobs:
 
           meson setup build \
             --cross-file cross-aarch64.txt \
-            -Dexamples=false -Ddocs=false -Dtests=false \
-            --prefix=/usr --libdir=lib/aarch64-linux-gnu
+            -Dexamples=false \
+            -Ddocs=false \
+            -Dtests=false \
+            -Dintrospection=false \
+            -Dvapi=false \
+            --prefix=/usr \
+            --libdir=lib/aarch64-linux-gnu
           ninja -C build
           sudo ninja -C build install
           sudo ldconfig
