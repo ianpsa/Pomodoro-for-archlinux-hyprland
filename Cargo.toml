@@ -1,0 +1,19 @@
+[package]
+name = "pomodoro-mindfullness"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# GTK 0.9 Ecosystem
+gtk4 = { version = "0.9", features = ["v4_10"] }
+gtk4-layer-shell = "0.4"
+gio = "0.20"
+glib = "0.20"
+
+# Audio
+rodio = "0.20"
+rand = "0.9"
+
+# Config
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.9"
