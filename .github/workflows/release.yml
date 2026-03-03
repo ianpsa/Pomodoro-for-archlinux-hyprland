@@ -1,0 +1,187 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  GTK4_LAYER_SHELL_VERSION: "1.3.0"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Linux x86_64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+            artifact: pomodoro-mindfullness-linux-x86_64
+            cross: false
+          # Linux ARM64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04
+            artifact: pomodoro-mindfullness-linux-aarch64
+            cross: true
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.artifact }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # ── Linux x86_64 (native) ───────────────────────────────────
+      - name: Install dependencies (x86_64)
+        if: ${{ !matrix.cross }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-4-dev \
+            libasound2-dev \
+            pkg-config \
+            meson \
+            ninja-build \
+            libgirepository1.0-dev \
+            gobject-introspection \
+            libwayland-dev \
+            wayland-protocols
+
+      - name: Build gtk4-layer-shell from source (x86_64)
+        if: ${{ !matrix.cross }}
+        run: |
+          git clone --branch v${{ env.GTK4_LAYER_SHELL_VERSION }} --depth 1 \
+            https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
+          cd /tmp/gtk4-layer-shell
+          meson setup build -Dexamples=false -Ddocs=false -Dtests=false --prefix=/usr
+          ninja -C build
+          sudo ninja -C build install
+          sudo ldconfig
+
+      # ── Linux ARM64 (cross-compile) ─────────────────────────────
+      - name: Setup arm64 apt sources
+        if: ${{ matrix.cross }}
+        run: |
+          sudo dpkg --add-architecture arm64
+
+          # Ubuntu 24.04 runners use deb822 format (.sources files)
+          # We need to pin existing sources to amd64 only and add ports for arm64
+
+          # Pin all existing .sources files to amd64 only
+          for f in /etc/apt/sources.list.d/*.sources; do
+            if [ -f "$f" ] && ! grep -q "^Architectures:" "$f"; then
+              sudo sed -i '/^Types:/a Architectures: amd64' "$f"
+            fi
+          done
+
+          # Also handle legacy .list format if present
+          if [ -f /etc/apt/sources.list ]; then
+            sudo sed -i '/^deb /{/\[/!s/^deb /deb [arch=amd64] /}' /etc/apt/sources.list 2>/dev/null || true
+          fi
+
+          # Add arm64 sources from ports.ubuntu.com (the only mirror with arm64)
+          sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null <<'SOURCES'
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports/
+          Suites: noble noble-updates noble-security
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          SOURCES
+
+      - name: Install dependencies (aarch64 cross)
+        if: ${{ matrix.cross }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            pkg-config \
+            meson \
+            ninja-build \
+            libgtk-4-dev:arm64 \
+            libasound2-dev:arm64 \
+            libwayland-dev:arm64 \
+            wayland-protocols \
+            libgirepository1.0-dev:arm64 \
+            gobject-introspection
+
+      - name: Build gtk4-layer-shell from source (aarch64 cross)
+        if: ${{ matrix.cross }}
+        run: |
+          git clone --branch v${{ env.GTK4_LAYER_SHELL_VERSION }} --depth 1 \
+            https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
+          cd /tmp/gtk4-layer-shell
+
+          cat > cross-aarch64.txt <<'CROSS'
+          [binaries]
+          c = 'aarch64-linux-gnu-gcc'
+          cpp = 'aarch64-linux-gnu-g++'
+          ar = 'aarch64-linux-gnu-ar'
+          strip = 'aarch64-linux-gnu-strip'
+          pkgconfig = 'pkg-config'
+
+          [properties]
+          pkg_config_libdir = '/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig'
+
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'aarch64'
+          cpu = 'aarch64'
+          endian = 'little'
+          CROSS
+
+          meson setup build \
+            --cross-file cross-aarch64.txt \
+            -Dexamples=false -Ddocs=false -Dtests=false \
+            --prefix=/usr --libdir=lib/aarch64-linux-gnu
+          ninja -C build
+          sudo ninja -C build install
+          sudo ldconfig
+
+          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_SYSROOT_DIR=/" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
+      # ── Build ───────────────────────────────────────────────────
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/pomodoro-mindfullness dist/${{ matrix.artifact }}
+          chmod +x dist/${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  # ── GitHub Release ────────────────────────────────────────────
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Create GitHub Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/**/*
