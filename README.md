@@ -15,7 +15,7 @@ Pois é, seu problema acaba agora! Com o Mindfull pomodoro você poderá organiz
 !!:  !!:  !!!  !!:  !!!            !:!  !!:  !!:     !!:  !!:  !!!  !!:  !!!  
 :!:  :!:  !:!  :!:  !:!  :!:      !:!   :!:  :!:     :!:  :!:  !:!  :!:  !:!  
 ::  ::   :::   ::   ::  :::  :::: ::    ::  :::     ::   ::   :::  ::::: ::  
-:     :   : :  ::    :   :::  :: : :    :     :      :     :   : :   : :  :                                                         
+:     :   : :  ::    :   :::  :: : :    :     :      :     :   : :   : :  :  
         .n                   .                 .                  n.
 .   .dP                  dP                   9b                 9b.    .
 4    qXb         .       dX                     Xb       .        dXp     t
@@ -37,8 +37,6 @@ dX.    9Xb      .dXb    __                         __    dXb.     dXP     .Xb
                             'b  '       '  d'
                             '             '
 ```
-
-&emsp;
 
 ---
 
@@ -73,7 +71,7 @@ sudo apt install libgtk-4-dev libgtk4-layer-shell-dev libasound2-dev pkg-config 
 
 ```bash
 # Clona o repo
-git clone git@github.com:SEU_USER/pomodoro-mindfullness.git
+git https://github.com/ianpsa/Pomodoro-for-hyprland.git
 cd pomodoro-mindfullness
 
 # Build em modo release (recomendado, senao fica lerdo)
@@ -95,3 +93,9 @@ cargo install --path .
 - `linux aarch64` — pra quem ta no ARM
 
 &emsp; Baixa, e `chmod +x`.
+
+## Como utilizar
+
+1. Clique no círculo ```para``` movê-lo de um canto a outro da tela.
+2. Clique no 'X' com o botão esquerdo ```para``` deixá-lo no modo mínimo e com o botão direito ```para``` fechá-lo!
+3. Clique no Brown Noise ```para``` escutar ruído marrom enquanto trabalha.

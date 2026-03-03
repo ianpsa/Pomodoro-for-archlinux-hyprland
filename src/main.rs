@@ -245,17 +245,33 @@ fn build_ui(app: &gtk4::Application) {
         }
     });
 
-    // botão esconder (modo foco)
+    // botão esconder (modo foco com clique esquerdo e sair com clique direito)
     let timer_ui_focus = timer_ui.clone();
     let window_focus = window.clone();
-    timer_ui.hide_button.connect_clicked(move |_| {
-        timer_ui_focus.stack.set_visible(false);
-        timer_ui_focus.top_bar.set_visible(false);
-        timer_ui_focus.container.add_css_class("focus-mode");
-        window_focus.set_default_width(0);
-        window_focus.set_default_height(0);
+    let app_focus = app.clone();
+    
+    let gesture_focus = GestureClick::new();
+    gesture_focus.set_button(0); // detectar qualquer botão
+    
+    gesture_focus.connect_pressed(move |gesture, _, _, _| {
+        match gesture.current_button() {
+            1 => {
+                // Clique esquerdo -> modo foco
+                timer_ui_focus.stack.set_visible(false);
+                timer_ui_focus.top_bar.set_visible(false);
+                timer_ui_focus.container.add_css_class("focus-mode");
+                window_focus.fullscreen();
+            }
+            3 => {
+                // Clique direito -> sair do app
+                app_focus.quit();
+            }
+            _ => {}
+        }
     });
-
+    
+    timer_ui.hide_button.add_controller(gesture_focus);
+    
     // restaurar UI ao clicar no label do tempo
     let gesture_restore = GestureClick::new();
     let timer_ui_restore = timer_ui.clone();
