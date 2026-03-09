@@ -5,6 +5,7 @@ use gtk4::{ApplicationWindow, Button, Overlay, Video};
 pub struct VideoOverlay {
     pub window: ApplicationWindow,
     pub video: Video,
+    pub close_btn: Button,
 }
 
 impl VideoOverlay {
@@ -35,15 +36,12 @@ impl VideoOverlay {
 
         overlay.add_overlay(&close_btn);
 
-        let window_weak = window.downgrade();
-        close_btn.connect_clicked(move |_| {
-            if let Some(window) = window_weak.upgrade() {
-                window.set_visible(false);
-            }
-        });
-
         window.set_child(Some(&overlay));
 
-        Self { window, video }
+        Self {
+            window,
+            video,
+            close_btn,
+        }
     }
 }

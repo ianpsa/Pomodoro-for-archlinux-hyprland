@@ -12,6 +12,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 static IS_PLAYING: AtomicBool = AtomicBool::new(false);
 
 fn main() -> glib::ExitCode {
+    #[cfg(unix)]
+    if !std::env::args().any(|a| a == "--foreground") {
+        unsafe {
+            let pid = libc::fork();
+            if pid < 0 {
+                eprintln!("fork falhou");
+            } else if pid > 0 {
+                // pai sai, devolvendo o terminal
+                std::process::exit(0);
+            }
+            // filho: nova sessão + roda o app
+            libc::setsid();
+        }
+    }
+
     let app = Application::builder()
         .application_id("org.ianpsa.pomodoromind")
         .build();
@@ -39,6 +54,32 @@ fn build_ui(app: &gtk4::Application) {
 
     let overlay = ui::video_overlay::VideoOverlay::new(app, &settings.borrow().video_path);
 
+    let rest_remaining = std::rc::Rc::new(std::cell::RefCell::new(0u32));
+
+    {
+        let overlay_win = overlay.window.clone();
+        let overlay_video = overlay.video.clone();
+        let rest_remaining = rest_remaining.clone();
+        let timer_logic = timer_logic.clone();
+        let timer_ui = timer_ui.clone();
+
+        overlay.close_btn.connect_clicked(move |_| {
+            if let Some(stream) = overlay_video.media_stream() {
+                stream.pause();
+                stream.set_muted(true);
+                stream.set_volume(0.0);
+            }
+            overlay_video.set_file(None::<&gio::File>);
+
+            *rest_remaining.borrow_mut() = 0;
+            overlay_win.set_visible(false);
+
+            let mut timer = timer_logic.borrow_mut();
+            timer.state = timer::pomodoro::TimerState::Play;
+            timer_ui.play_button.set_label("Pausar");
+        });
+    }
+
     // aplicar valores iniciais do config na UI
     {
         let cfg = settings.borrow();
@@ -65,8 +106,6 @@ fn build_ui(app: &gtk4::Application) {
         audio::brown_noise::set_volume(cfg.brown_noise_volume);
     }
 
-    let rest_remaining = std::rc::Rc::new(std::cell::RefCell::new(0u32));
-
     // loop principal do timer (1 segundo)
     glib::timeout_add_local(std::time::Duration::from_secs(1), {
         let timer_logic = timer_logic.clone();
@@ -84,6 +123,15 @@ fn build_ui(app: &gtk4::Application) {
                 *rest_time -= 1;
                 if *rest_time == 0 {
                     overlay_win.set_visible(false);
+
+                    if let Some(stream) = video.media_stream() {
+                        stream.pause();
+                        stream.set_muted(true);
+                    }
+                    video.set_file(None::<&gio::File>);
+
+                    timer.state = timer::pomodoro::TimerState::Play;
+                    timer_ui.play_button.set_label("Pausar");
                 }
                 return glib::ControlFlow::Continue;
             }

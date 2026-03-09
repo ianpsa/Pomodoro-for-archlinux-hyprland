@@ -17,3 +17,5 @@ rand = "0.9"
 # Config
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.9"
+
+libc = "0.2"
