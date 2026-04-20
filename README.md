@@ -99,3 +99,7 @@ cargo install --path .
 1. Clique no círculo ```para``` movê-lo de um canto a outro da tela.
 2. Clique no 'X' com o botão esquerdo ```para``` deixá-lo no modo mínimo e com o botão direito ```para``` fechá-lo!
 3. Clique no Brown Noise ```para``` escutar ruído marrom enquanto trabalha.
+
+## Interface
+
+<img width="276" height="345" alt="pomodoro" src="https://github.com/user-attachments/assets/bcdda1b0-09b4-46c5-b08d-5f9fad81b91c" />
